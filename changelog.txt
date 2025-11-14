@@ -1,0 +1,6 @@
+The changes made while developing pytorch conversion
+
+- Made copy of original agent.py for reference.
+- Review model parameters in model_versions.json, version to be used 17.1 according to assignment.
+- Delete unused model classes from agent.py, retain Agent() and DeepQLearningAgent(Agent).
+

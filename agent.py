@@ -290,15 +290,9 @@ class Agent():
         return row*self._board_size + col
 
 class DeepQLearningAgent(Agent):
-    """This agent learns the game via Q learning
+    """
+    This agent learns the game via Q learning
     model outputs everywhere refers to Q values
-
-    Attributes
-    ----------
-    _model : TensorFlow Graph
-        Stores the graph of the DQN model
-    _target_net : TensorFlow Graph
-        Stores the target network graph of the DQN model
     """
     def __init__(self, board_size=10, frames=4, buffer_size=10000,
                  gamma=0.99, n_actions=3, use_target_net=True,
@@ -321,10 +315,12 @@ class DeepQLearningAgent(Agent):
         self.reset_models()
 
     def reset_models(self):
-        """ Reset all the models by creating new graphs"""
-        self._model = self._agent_model()
+        """ Reset all the models by creating new model"""
+        self._model = self._agent_model().to(self._device)
+        self._optimizer = optim.RMSprop(self._model.parameters(), lr=5e-4)
+
         if(self._use_target_net):
-            self._target_net = self._agent_model()
+            self._target_net = self._agent_model().to(self._device)
             self.update_target_net()
 
     def _prepare_input(self, board):
@@ -352,8 +348,8 @@ class DeepQLearningAgent(Agent):
         ----------
         board : Numpy array
             The board state for which to predict action values
-        model : TensorFlow Graph, optional
-            The graph to use for prediction, model or target network
+        model : PyTorch model, optional
+            The model to use for prediction, model or target network
 
         Returns
         -------
@@ -366,7 +362,17 @@ class DeepQLearningAgent(Agent):
         # the default model to use
         if model is None:
             model = self._model
-        model_outputs = model.predict_on_batch(board)
+        
+        # Tensor to device
+        x = torch.from_numpy(board).to(self._device)
+        
+        # Re-arrange channels (B, H, W, C -> B, C, H, W)
+        x = x.permute(0,3,1,2)
+
+        model.eval()
+        with torch.no_grad():
+            model_outputs = model(x)
+
         return model_outputs
 
     def _normalize_board(self, board):
@@ -405,31 +411,20 @@ class DeepQLearningAgent(Agent):
         return np.argmax(np.where(legal_moves==1, model_outputs, -np.inf), axis=1)
 
     def _agent_model(self):
-        """Returns the model which evaluates Q values for a given state input
+        """
+        Returns the model which evaluates Q values for a given state input
 
         Returns
         -------
         model : DQNTorch instance
             DQN model instance
         """
-        # define the input layer, shape is dependent on the board size and frames
-        with open('model_config/{:s}.json'.format(self._version), 'r') as f:
-            m = json.loads(f.read())
-        
-        input_board = Input((self._board_size, self._board_size, self._n_frames,), name='input')
-        x = input_board
-        for layer in m['model']:
-            l = m['model'][layer]
-            if('Conv2D' in layer):
-                # add convolutional layer
-                x = Conv2D(**l)(x)
-            if('Flatten' in layer):
-                x = Flatten()(x)
-            if('Dense' in layer):
-                x = Dense(**l)(x)
-        out = Dense(self._n_actions, activation='linear', name='action_values')(x)
-        model = Model(inputs=input_board, outputs=out)
-        model.compile(optimizer=RMSprop(0.0005), loss=mean_huber_loss)
+        model = DQN(
+            version=self._version, 
+            board_size=self._board_size, 
+            n_frames=self._n_frames, 
+            n_actions=self._n_actions
+            )
 
         return model
 
@@ -573,12 +568,13 @@ class DeepQLearningAgent(Agent):
         return loss
 
     def update_target_net(self):
-        """Update the weights of the target network, which is kept
-        static for a few iterations to stabilize the other network.
-        This should not be updated very frequently
         """
-        if(self._use_target_net):
-            self._target_net.set_weights(self._model.get_weights())
+        Copy the parameters from main model to target net
+        """
+        if not self._use_target_net:
+            return
+        self._target_net.load_state_dict(self._model.state_dict())
+        self._target_net.eval()
 
     def compare_weights(self):
         """Simple utility function to heck if the model and target 

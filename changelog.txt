@@ -2,5 +2,11 @@ The changes made while developing pytorch conversion
 
 - Made copy of original agent.py for reference.
 - Review model parameters in model_versions.json, version to be used 17.1 according to assignment.
-- Delete unused model classes from agent.py, retain Agent() and DeepQLearningAgent(Agent).
+- Review model_config/v17.1.json
+- Review agent.py code for an overview, make a plan
+- Delete unused model classes from agent.py, retain Agent() and DeepQLearningAgent(Agent) as per assignment "clean the code base".
+- Review DeepQLearningAgent class. 
+- Clean up some commented out code, removed TF imports.
+- Removed functions huber_loss, mean_huber_loss, planning to use Torch modules instead
+- Added PyTorch imports and DQN model class(nn.Module) to agent.py with CNN layers added dynamic from config
 
